@@ -39,7 +39,16 @@
             font-family: 'Courier New', Courier, monospace;
             text-shadow: 3px 3px 0px #1e3d2f;
         }
-        button {
+        .status-badge {
+            display: inline-block;
+            background-color: #4a90e2;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-bottom: 20px;
+        }
+        .btn-crash {
             cursor: pointer;
             font-size: 18px;
             font-weight: bold;
@@ -48,8 +57,6 @@
             border-radius: 5px;
             transition: all 0.2s;
             margin: 10px;
-        }
-        .btn-crash {
             background-color: #ff4757;
             color: white;
             box-shadow: 0 5px 0 #cf2131;
@@ -58,36 +65,10 @@
             transform: translateY(5px);
             box-shadow: none;
         }
-        .btn-action {
-            background-color: #f1f2f6;
-            color: #2f3542;
-            font-size: 14px;
-            padding: 8px 15px;
-        }
-        .btn-action:hover {
-            background-color: #dfe4ea;
-        }
-        .file-controls {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px dashed rgba(255,255,255,0.3);
-        }
-        input[type="file"] {
-            display: none;
-        }
-        .file-label {
-            display: inline-block;
-            background-color: #ffa502;
-            color: white;
-            padding: 8px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
-            margin: 10px;
-        }
-        .file-label:hover {
-            background-color: #eccc68;
+        .info-text {
+            font-size: 12px;
+            color: #ccc;
+            margin-top: 20px;
         }
     </style>
 </head>
@@ -97,59 +78,60 @@
     <h1>林田先生チョーククラッシュカウンター</h1>
     <div class="subtitle">〜ああっ、また先生がチョークを……〜</div>
     
+    <div class="status-badge">JSON自動同期中</div>
+
     <!-- カウンター表示 -->
-    <div class="counter" id="countDisplay">0</div>
+    <div class="counter" id="countDisplay">-</div>
     
     <!-- カウントボタン -->
     <button class="btn-crash" onclick="countUp()">クラッシュ！</button>
-    <button class="btn-action" onclick="resetCount()">リセット</button>
 
-    <!-- JSONデータ管理セクション -->
-    <div class="file-controls">
-        <h3>データの保存と読み込み</h3>
-        <!-- JSONダウンロード -->
-        <button class="btn-action" onclick="downloadJSON()">JSONとしてPCに保存</button>
-        
-        <!-- JSONアップロード -->
-        <label class="file-label">
-            JSONから続きを読み込む
-            <input type="file" id="jsonFile" accept=".json" onchange="loadJSON(this)">
-        </label>
+    <div class="info-text">
+        ※ボタンを押すと最新のカウントを含んだJSONファイルがダウンロードされます。<br>
+        フォルダ内の「counter.json」をそのファイルに上書きしてください。
     </div>
 </div>
 
 <script>
-    // カウントの初期値
-    let chalkData = {
-        teacher: "林田先生",
-        crashCount: 0,
-        lastUpdated: ""
-    };
+    const JSON_FILE_PATH = 'counter.json'; // 読み込むJSONファイル名
+    let chalkData = { teacher: "林田先生", crashCount: 0 };
 
-    const countDisplay = document.getElementById('countDisplay');
+    // 1. ページを開いた瞬間にJSONを自動で読み込む
+    window.addEventListener('DOMContentLoaded', () => {
+        fetch(JSON_FILE_PATH)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('JSONファイルが見つかりません。初期値で開始します。');
+                }
+                return response.json();
+            })
+            .then(data => {
+                chalkData = data;
+                updateDisplay();
+            })
+            .catch(error => {
+                console.error(error);
+                alert('counter.json が読み込めませんでした。同じフォルダにファイルがあるか確認してください。');
+                updateDisplay();
+            });
+    });
 
     // 画面の数値を更新する関数
     function updateDisplay() {
-        countDisplay.textContent = chalkData.crashCount;
+        document.getElementById('countDisplay').textContent = chalkData.crashCount;
     }
 
-    // カウントアップ
+    // カウントアップ＆新しいJSONのダウンロード
     function countUp() {
         chalkData.crashCount++;
-        chalkData.lastUpdated = new Date().toLocaleString('ja-JP');
         updateDisplay();
+        
+        // ローカル環境のセキュリティ上、ブラウザから直接ファイルを書き換えることはできないため、
+        // 更新された新しいJSONファイルを自動でダウンロードさせます。
+        downloadJSON();
     }
 
-    // リセット
-    function resetCount() {
-        if(confirm("カウントを0に戻してもよろしいですか？")) {
-            chalkData.crashCount = 0;
-            chalkData.lastUpdated = new Date().toLocaleString('ja-JP');
-            updateDisplay();
-        }
-    }
-
-    // JSONファイルをダウンロード保存する
+    // JSONファイルをダウンロードする関数
     function downloadJSON() {
         const jsonString = JSON.stringify(chalkData, null, 2);
         const blob = new Blob([jsonString], { type: "application/json" });
@@ -157,40 +139,12 @@
         
         const a = document.createElement('a');
         a.href = url;
-        a.download = `hayashida_chalk_count.json`;
+        a.download = 'counter.json'; // 同じ名前でダウンロード
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
-
-    // JSONファイルを読み込んでデータを復元する
-    function loadJSON(input) {
-        const file = input.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const parsedData = JSON.parse(e.target.result);
-                if (parsedData && typeof parsedData.crashCount === 'number') {
-                    chalkData = parsedData;
-                    updateDisplay();
-                    alert(`データを読み込みました！現在のクラッシュ数: ${chalkData.crashCount}回`);
-                } else {
-                    alert("無効なJSONファイルです。");
-                }
-            } catch (err) {
-                alert("ファイルの読み込みに失敗しました。");
-            }
-        };
-        reader.readAsText(file);
-        // 同じファイルを連続で読み込めるようにリセット
-        input.value = '';
-    }
-
-    // 初期表示
-    updateDisplay();
 </script>
 
 </body>
