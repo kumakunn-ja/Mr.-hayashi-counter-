@@ -3,148 +3,238 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>林田先生 チョーククラッシュカウンター</title>
+    <title>林田先生 チョーククラッシュ・ライブモニター</title>
     <style>
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: #2e5a44; /* 黒板っぽい緑 */
+            background-color: #2e5a44; /* 黒板の緑 */
             color: #ffffff;
             text-align: center;
             padding: 50px 20px;
             margin: 0;
+            overflow: hidden;
+            transition: background-color 0.2s ease;
+        }
+        /* 激しく更新されたときのフラッシュ演出用 */
+        body.flash-alert {
+            background-color: #ff4757 !important;
         }
         .container {
             max-width: 500px;
             margin: 0 auto;
-            background: rgba(0, 0, 0, 0.2);
-            padding: 30px;
+            background: rgba(0, 0, 0, 0.25);
+            padding: 40px 30px;
             border-radius: 15px;
             border: 4px solid #fff;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: relative;
+            z-index: 10;
         }
         h1 {
             font-size: 24px;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         }
         .subtitle {
-            font-size: 14px;
-            color: #ddd;
-            margin-bottom: 30px;
+            font-size: 13px;
+            color: #ccc;
+            margin-bottom: 25px;
         }
-        .counter {
-            font-size: 72px;
-            font-weight: bold;
-            margin: 20px 0;
-            font-family: 'Courier New', Courier, monospace;
-            text-shadow: 3px 3px 0px #1e3d2f;
-        }
-        .status-badge {
+        .monitor-badge {
             display: inline-block;
-            background-color: #4a90e2;
+            background-color: #2ed573;
             color: white;
-            padding: 5px 10px;
+            padding: 5px 12px;
             border-radius: 20px;
             font-size: 12px;
-            margin-bottom: 20px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            animation: pulse 2s infinite;
         }
-        .btn-crash {
-            cursor: pointer;
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        .counter-wrapper {
+            margin: 30px 0;
+        }
+        .counter {
+            font-size: 96px;
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+            text-shadow: 4px 4px 0px #1e3d2f;
+            display: inline-block;
+            transition: transform 0.1s ease;
+        }
+        /* 数値アップ時のバンプアニメーション */
+        .bump {
+            transform: scale(1.3);
+            color: #ffa502;
+        }
+        .unit {
+            font-size: 24px;
+            margin-left: 5px;
+        }
+        /* 危険度メーター */
+        .danger-zone {
+            margin-top: 25px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            border-left: 5px solid #ffa502;
+            text-align: left;
+        }
+        .danger-label {
+            font-size: 12px;
+            color: #ddd;
+            text-transform: uppercase;
+        }
+        .danger-status {
             font-size: 18px;
             font-weight: bold;
-            padding: 15px 30px;
-            border: none;
-            border-radius: 5px;
-            transition: all 0.2s;
-            margin: 10px;
-            background-color: #ff4757;
-            color: white;
-            box-shadow: 0 5px 0 #cf2131;
+            margin-top: 5px;
+            color: #fff;
         }
-        .btn-crash:active {
-            transform: translateY(5px);
-            box-shadow: none;
+        /* チョークの粉エフェクト */
+        .dust {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: fall linear forwards;
         }
-        .info-text {
-            font-size: 12px;
-            color: #ccc;
-            margin-top: 20px;
+        @keyframes fall {
+            0% { transform: translateY(-20px) translateX(0); opacity: 1; }
+            100% { transform: translateY(100vh) translateX(100px); opacity: 0; }
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>林田先生チョーククラッシュカウンター</h1>
-    <div class="subtitle">〜ああっ、また先生がチョークを……〜</div>
+    <h1>林田先生 チョーククラッシュモニター</h1>
+    <div class="subtitle">〜リアルタイムで林田先生の筆圧を監視中〜</div>
     
-    <div class="status-badge">JSON自動同期中</div>
+    <div class="monitor-badge">● LIVE 監視システム稼働中</div>
 
-    <!-- カウンター表示 -->
-    <div class="counter" id="countDisplay">-</div>
-    
-    <!-- カウントボタン -->
-    <button class="btn-crash" onclick="countUp()">クラッシュ！</button>
+    <div class="counter-wrapper">
+        <div class="counter" id="countDisplay">-</div>
+        <span class="unit">クラッシュ</span>
+    </div>
 
-    <div class="info-text">
-        ※ボタンを押すと最新のカウントを含んだJSONファイルがダウンロードされます。<br>
-        フォルダ内の「counter.json」をそのファイルに上書きしてください。
+    <div class="danger-zone">
+        <div class="danger-label">現在の林田先生の危険度</div>
+        <div class="danger-status" id="dangerStatus">計測中...</div>
     </div>
 </div>
 
 <script>
-    const JSON_FILE_PATH = 'counter.json'; // 読み込むJSONファイル名
-    let chalkData = { teacher: "林田先生", crashCount: 0 };
+    const JSON_FILE_PATH = 'counter.json';
+    let currentCount = null;
 
-    // 1. ページを開いた瞬間にJSONを自動で読み込む
-    window.addEventListener('DOMContentLoaded', () => {
-        fetch(JSON_FILE_PATH)
+    // Cookieから前回見たカウントを取得する関数
+    function getLastSeenCount() {
+        const cookies = document.cookie.split('; ');
+        for (let i = 0; i < cookies.length; i++) {
+            const parts = cookies[i].split('=');
+            if (parts[0] === 'lastSeenChalk') {
+                return parseInt(parts[1], 10);
+            }
+        }
+        return null;
+    }
+
+    // Cookieに現在のカウントを保存する関数（有効期限は7日間）
+    function setLastSeenCount(count) {
+        const d = new Date();
+        d.setTime(d.getTime() + (7 * 24 * 60 * 60 * 1000));
+        document.cookie = `lastSeenChalk=${count}; expires=${d.toUTCString()}; path=/`;
+    }
+
+    function getDangerLevel(count) {
+        if (count === 0) return { text: "😇 奇跡の無傷（安全）", color: "#2ed573" };
+        if (count <= 5) return { text: "✍️ 通常運転（やや筆圧強め）", color: "#eccc68" };
+        if (count <= 10) return { text: "⚡ 警告（チョークケース残り半分）", color: "#ffa502" };
+        if (count <= 20) return { text: "🚨 厳重警戒（黒板が悲鳴を上げています）", color: "#ff6348" };
+        return { text: "💥 チョーク絶滅領域（全滅）", color: "#ff4757" };
+    }
+
+    function createChalkDust() {
+        for (let i = 0; i < 30; i++) {
+            const dust = document.createElement('div');
+            dust.classList.add('dust');
+            const size = Math.random() * 6 + 2;
+            dust.style.width = `${size}px`;
+            dust.style.height = `${size}px`;
+            dust.style.left = `${Math.random() * window.innerWidth}px`;
+            dust.style.top = `-10px`;
+            dust.style.animationDuration = `${Math.random() * 2 + 1}s`;
+            document.body.appendChild(dust);
+            setTimeout(() => { dust.remove(); }, 3000);
+        }
+    }
+
+    // JSONをチェックするメイン関数
+    function checkJSON() {
+        fetch(`${JSON_FILE_PATH}?t=${new Date().getTime()}`)
             .then(response => {
-                if (!response.ok) {
-                    throw new Error('JSONファイルが見つかりません。初期値で開始します。');
-                }
+                if (!response.ok) throw new Error('FILE_NOT_FOUND');
                 return response.json();
             })
             .then(data => {
-                chalkData = data;
-                updateDisplay();
+                const newCount = data.crashCount;
+                const lastSeen = getLastSeenCount();
+
+                // 初回読み込み時の判定
+                if (currentCount === null) {
+                    currentCount = newCount;
+                    
+                    // 「過去に見た数」が存在し、かつ「今のJSONの数」の方が増えていたら発動！
+                    if (lastSeen !== null && newCount > lastSeen) {
+                        updateUI(newCount, true);
+                    } else {
+                        updateUI(newCount, false);
+                    }
+                } 
+                // 画面を開いている最中に、リアルタイムで数が増えた場合も発動！
+                else if (newCount > currentCount) {
+                    currentCount = newCount;
+                    updateUI(newCount, true);
+                }
+
+                // 常に最新の数をCookieにメモしておく
+                setLastSeenCount(newCount);
             })
             .catch(error => {
-                console.error(error);
-                alert('counter.json が読み込めませんでした。同じフォルダにファイルがあるか確認してください。');
-                updateDisplay();
+                console.error("読み込みエラー:", error);
             });
-    });
-
-    // 画面の数値を更新する関数
-    function updateDisplay() {
-        document.getElementById('countDisplay').textContent = chalkData.crashCount;
     }
 
-    // カウントアップ＆新しいJSONのダウンロード
-    function countUp() {
-        chalkData.crashCount++;
-        updateDisplay();
+    function updateUI(count, isNewCrash) {
+        const display = document.getElementById('countDisplay');
+        const dangerStatus = document.getElementById('dangerStatus');
+        const dangerZone = document.querySelector('.danger-zone');
         
-        // ローカル環境のセキュリティ上、ブラウザから直接ファイルを書き換えることはできないため、
-        // 更新された新しいJSONファイルを自動でダウンロードさせます。
-        downloadJSON();
+        display.textContent = count;
+
+        const danger = getDangerLevel(count);
+        dangerStatus.textContent = danger.text;
+        dangerZone.style.borderLeftColor = danger.color;
+
+        if (isNewCrash) {
+            display.classList.add('bump');
+            setTimeout(() => display.classList.remove('bump'), 300);
+
+            document.body.classList.add('flash-alert');
+            setTimeout(() => document.body.classList.remove('flash-alert'), 200);
+
+            createChalkDust();
+        }
     }
 
-    // JSONファイルをダウンロードする関数
-    function downloadJSON() {
-        const jsonString = JSON.stringify(chalkData, null, 2);
-        const blob = new Blob([jsonString], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'counter.json'; // 同じ名前でダウンロード
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
+    checkJSON();
+    setInterval(checkJSON, 3000); // 3秒ごとに監視
 </script>
 
 </body>
